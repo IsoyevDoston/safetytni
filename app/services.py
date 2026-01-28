@@ -38,10 +38,16 @@ async def get_vehicle_unit(vehicle_id: int) -> str:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             
+            # Motive wraps the vehicle in a 'vehicle' key; extract nested number.
             vehicle_data = response.json()
-            unit_number = vehicle_data.get("number", "Unit Unknown")
+            unit_number = vehicle_data.get("vehicle", {}).get("number")
+
+            if not unit_number:
+                # Log full payload at debug level to inspect structure in Railway logs.
+                logger.debug(f"Motive Response: {vehicle_data}")
+                unit_number = "Unit Unknown"
             
-            # Cache the result
+            # Cache the result (keyed by vehicle_id, so repeated lookups are avoided)
             await vehicle_cache.set(vehicle_id, unit_number)
             logger.info(f"Fetched and cached vehicle_id={vehicle_id}, unit={unit_number}")
             
