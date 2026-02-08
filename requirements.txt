@@ -7,3 +7,8 @@ pydantic-settings==2.1.0
 python-dotenv==1.0.0
 cachetools==5.3.2
 httpx==0.25.2
+requests==2.31.0
+SQLAlchemy==2.0.25
+alembic==1.13.1
+asyncpg==0.29.0
+greenlet==3.0.3

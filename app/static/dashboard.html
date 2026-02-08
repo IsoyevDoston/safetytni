@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Safety Events Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: { DEFAULT: '#0f0f0f', light: '#1a1a1a' },
+            accent: { DEFAULT: '#b91c1c', light: '#dc2626', dark: '#991b1b' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #0f0f0f; }
+    .table-row:hover { background-color: rgba(185, 28, 28, 0.08); }
+  </style>
+</head>
+<body class="min-h-screen text-gray-100">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <header class="flex items-center justify-between mb-8 border-b border-red-900/50 pb-4">
+      <h1 class="text-2xl font-bold text-red-500">Safety Events Dashboard</h1>
+      <span class="text-sm text-gray-500" id="last-update">Loading…</span>
+    </header>
+
+    <div class="rounded-lg overflow-hidden border border-red-900/30 bg-dark-light shadow-xl">
+      <table class="w-full">
+        <thead class="bg-red-950/40 text-left text-sm uppercase tracking-wider text-red-300">
+          <tr>
+            <th class="px-6 py-4 font-semibold">Unit #</th>
+            <th class="px-6 py-4 font-semibold">Type</th>
+            <th class="px-6 py-4 font-semibold">Speed</th>
+            <th class="px-6 py-4 font-semibold">Limit</th>
+            <th class="px-6 py-4 font-semibold">Time</th>
+            <th class="px-6 py-4 font-semibold">Map</th>
+          </tr>
+        </thead>
+        <tbody id="events-tbody" class="divide-y divide-red-900/20">
+          <tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">Loading events…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    function formatTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function renderTable(events) {
+      const tbody = document.getElementById('events-tbody');
+      if (!events || events.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No events yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = events.map(function (e) {
+        const speed = e.speed != null ? Number(e.speed).toFixed(1) : '—';
+        const limit = e.limit != null ? Number(e.limit).toFixed(1) : '—';
+        const mapCell = e.maps_link
+          ? '<a href="' + e.maps_link + '" target="_blank" rel="noopener" class="inline-block px-3 py-1.5 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-medium">Google Maps</a>'
+          : '<span class="text-gray-500">—</span>';
+        return '<tr class="table-row">' +
+          '<td class="px-6 py-4">' + (e.vehicle_unit || '—') + '</td>' +
+          '<td class="px-6 py-4">' + (e.event_type || '—') + '</td>' +
+          '<td class="px-6 py-4">' + speed + '</td>' +
+          '<td class="px-6 py-4">' + limit + '</td>' +
+          '<td class="px-6 py-4">' + formatTime(e.timestamp) + '</td>' +
+          '<td class="px-6 py-4">' + mapCell + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    function fetchEvents() {
+      fetch('/api/events', { credentials: 'include' })
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.statusText);
+          return r.json();
+        })
+        .then(function (data) {
+          renderTable(data);
+          document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+        })
+        .catch(function (err) {
+          document.getElementById('events-tbody').innerHTML =
+            '<tr><td colspan="6" class="px-6 py-8 text-center text-red-400">Failed to load: ' + err.message + '</td></tr>';
+        });
+    }
+
+    fetchEvents();
+    setInterval(fetchEvents, 30000);
+  </script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 import logging
 from aiogram import Bot
 from typing import Optional
+
 from app.config import settings
 from app.services import get_vehicle_unit
 from app.models import SpeedingEvent
@@ -60,8 +61,10 @@ async def process_alert(event_data: dict) -> None:
             logger.info(f"Event {event.id} filtered: over_speed_mph={over_mph:.1f} < 5 mph threshold")
             return
         
-        # Get vehicle unit number
-        unit_number = await get_vehicle_unit(event.vehicle_id)
+        # Get vehicle unit number (prefer value from enriched payload to avoid duplicate API calls)
+        unit_number = event_data.get("vehicle_unit")
+        if not unit_number:
+            unit_number = await get_vehicle_unit(event.vehicle_id)
 
         # Fallback: if unit is unknown, include raw vehicle_id
         if unit_number == "Unit Unknown":
@@ -70,13 +73,20 @@ async def process_alert(event_data: dict) -> None:
             unit_display = unit_number
         
         # Format the alert message using HTML
-        message = (
-            "🚨 <b>SPEEDING ALERT</b>\n"
-            f"<b>Unit:</b> {unit_display}\n"
-            f"<b>Route Limit:</b> {limit_mph:.1f} mph\n"
-            f"<b>Current Speed:</b> {speed_mph:.1f} mph\n"
-            f"<b>Violation:</b> +{over_mph:.1f} mph"
-        )
+        message_lines = [
+            "🚨 <b>SPEEDING ALERT</b>",
+            f"<b>Unit:</b> {unit_display}",
+            f"<b>Route Limit:</b> {limit_mph:.1f} mph",
+            f"<b>Current Speed:</b> {speed_mph:.1f} mph",
+            f"<b>Violation:</b> +{over_mph:.1f} mph",
+        ]
+
+        # Include map link if present
+        map_link = event_data.get("map_link")
+        if map_link:
+            message_lines.append(f"<b>Map:</b> {map_link}")
+
+        message = "\n".join(message_lines)
         
         # Send the message
         await bot.send_message(
@@ -89,4 +99,48 @@ async def process_alert(event_data: dict) -> None:
         
     except Exception as e:
         logger.error(f"Error processing alert: {e}", exc_info=True)
+        raise
+
+
+async def process_safety_alert(event_data: dict) -> None:
+    """
+    Process a safety event (hard brake, acceleration, cornering) and send Telegram notification.
+    """
+    try:
+        logger.info(f"Processing safety alert: {event_data.get('event_type')}, id={event_data.get('id')}")
+        if bot is None:
+            await init_bot()
+
+        vehicle_id = event_data.get("vehicle_id")
+        unit_number = event_data.get("vehicle_unit")
+        if not unit_number and vehicle_id is not None:
+            from app.services import get_vehicle_unit
+            unit_number = await get_vehicle_unit(vehicle_id)
+
+        if unit_number == "Unit Unknown" and vehicle_id is not None:
+            unit_display = f"Unknown (ID: {vehicle_id})"
+        else:
+            unit_display = unit_number or "Unknown"
+
+        event_type = event_data.get("event_type", "safety")
+        event_label = event_type.replace("_", " ").title()
+
+        message_lines = [
+            "⚠️ <b>SAFETY EVENT</b>",
+            f"<b>Type:</b> {event_label}",
+            f"<b>Unit:</b> {unit_display}",
+        ]
+        map_link = event_data.get("map_link")
+        if map_link:
+            message_lines.append(f"<b>Map:</b> {map_link}")
+
+        message = "\n".join(message_lines)
+        await bot.send_message(
+            chat_id=settings.telegram_chat_id,
+            text=message,
+            parse_mode="HTML",
+        )
+        logger.info(f"Safety alert sent: {event_type}, unit {unit_display}")
+    except Exception as e:
+        logger.error(f"Error processing safety alert: {e}", exc_info=True)
         raise

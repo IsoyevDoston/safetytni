@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     
     # Motive API Configuration
     motive_api_token: str
+
+    # Database Configuration
+    database_url: str  # e.g. postgres+asyncpg://user:pass@host:port/dbname
     
     # Server Configuration
     host: str = "0.0.0.0"
